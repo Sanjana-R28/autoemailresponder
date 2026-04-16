@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Email Autoresponder API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: email
+    description: Email processing and analysis
+  - name: gmail
+    description: Gmail OAuth and integration
+  - name: history
+    description: Email history and analytics
 paths:
   /healthz:
     get:
@@ -24,6 +30,146 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /email/process:
+    post:
+      operationId: processEmail
+      tags: [email]
+      summary: Process and analyze an email with AI
+      description: Analyze email sentiment, intent, category and generate an AI reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessEmailBody"
+      responses:
+        "200":
+          description: Email processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailAnalysisResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /email/history:
+    get:
+      operationId: getEmailHistory
+      tags: [history]
+      summary: Get email processing history
+      description: Returns list of previously processed emails with their analysis
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Email history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailHistoryResponse"
+
+  /email/stats:
+    get:
+      operationId: getEmailStats
+      tags: [history]
+      summary: Get email analysis statistics
+      description: Returns aggregated stats for sentiment, intent, and category breakdowns
+      responses:
+        "200":
+          description: Email statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailStats"
+
+  /gmail/auth-url:
+    get:
+      operationId: getGmailAuthUrl
+      tags: [gmail]
+      summary: Get Gmail OAuth authorization URL
+      description: Returns the OAuth URL for Gmail authentication
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUrlResponse"
+
+  /gmail/status:
+    get:
+      operationId: getGmailStatus
+      tags: [gmail]
+      summary: Get Gmail connection status
+      description: Returns whether Gmail is connected and connected email
+      responses:
+        "200":
+          description: Gmail status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GmailStatusResponse"
+
+  /gmail/autorespond:
+    post:
+      operationId: gmailAutorespond
+      tags: [gmail]
+      summary: Auto-respond to latest unread Gmail
+      description: Reads latest unread Gmail, analyzes it, and sends AI-generated reply
+      responses:
+        "200":
+          description: Auto-respond result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoRespondResult"
+        "400":
+          description: Gmail not connected or no unread emails
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /gmail/revoke:
+    post:
+      operationId: revokeGmailAccess
+      tags: [gmail]
+      summary: Revoke Gmail access
+      description: Disconnects the Gmail account and removes stored tokens
+      responses:
+        "200":
+          description: Access revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +180,178 @@ components:
       required:
         - status
 
+    ProcessEmailBody:
+      type: object
+      required:
+        - subject
+        - body
+      properties:
+        subject:
+          type: string
+          description: Email subject
+        body:
+          type: string
+          description: Email body text
+        senderName:
+          type: string
+          description: Name of the sender
+        senderEmail:
+          type: string
+          description: Email address of the sender
+
+    EmailAnalysisResult:
+      type: object
+      required:
+        - id
+        - subject
+        - body
+        - sentiment
+        - intent
+        - area
+        - generatedReply
+        - createdAt
+      properties:
+        id:
+          type: integer
+        subject:
+          type: string
+        body:
+          type: string
+        senderName:
+          type: string
+          nullable: true
+        senderEmail:
+          type: string
+          nullable: true
+        sentiment:
+          type: string
+          enum: [Positive, Negative, Neutral]
+        intent:
+          type: string
+          enum: [Support Request, Feedback, Sales Inquiry, General Inquiry, Complaint, Other]
+        area:
+          type: string
+          enum: [Product, Billing, Technical, Sales, General, Other]
+        generatedReply:
+          type: string
+        source:
+          type: string
+          enum: [manual, gmail]
+          nullable: true
+        gmailMessageId:
+          type: string
+          nullable: true
+        replySent:
+          type: boolean
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    EmailHistoryResponse:
+      type: object
+      required:
+        - emails
+        - total
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailAnalysisResult"
+        total:
+          type: integer
+
+    EmailStats:
+      type: object
+      required:
+        - total
+        - sentimentBreakdown
+        - intentBreakdown
+        - areaBreakdown
+        - recentActivity
+      properties:
+        total:
+          type: integer
+        sentimentBreakdown:
+          type: object
+          properties:
+            Positive:
+              type: integer
+            Negative:
+              type: integer
+            Neutral:
+              type: integer
+          required: [Positive, Negative, Neutral]
+        intentBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        areaBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        recentActivity:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              count:
+                type: integer
+            required: [date, count]
+
+    AuthUrlResponse:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+
+    GmailStatusResponse:
+      type: object
+      required:
+        - connected
+      properties:
+        connected:
+          type: boolean
+        email:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+
+    AutoRespondResult:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        analysis:
+          $ref: "#/components/schemas/EmailAnalysisResult"
+          nullable: true
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
