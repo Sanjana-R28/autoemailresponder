@@ -19,7 +19,7 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-router.get("/api/gmail/auth-url", async (req, res) => {
+router.get("/gmail/auth-url", async (req, res) => {
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   const redirectUri = process.env.GMAIL_REDIRECT_URI;
@@ -46,7 +46,7 @@ router.get("/api/gmail/auth-url", async (req, res) => {
   res.json({ url });
 });
 
-router.get("/api/gmail/callback", async (req, res) => {
+router.get("/gmail/callback", async (req, res) => {
   const code = req.query.code as string;
   if (!code) {
     res.status(400).send("No authorization code provided");
@@ -77,7 +77,7 @@ router.get("/api/gmail/callback", async (req, res) => {
   }
 });
 
-router.get("/api/gmail/status", async (req, res) => {
+router.get("/gmail/status", async (req, res) => {
   const tokens = await db.select().from(gmailTokensTable).limit(1);
   if (tokens.length === 0) {
     res.json({ connected: false, email: null, name: null });
@@ -91,7 +91,7 @@ router.get("/api/gmail/status", async (req, res) => {
   });
 });
 
-router.post("/api/gmail/autorespond", async (req, res) => {
+router.post("/gmail/autorespond", async (req, res) => {
   const tokenRows = await db.select().from(gmailTokensTable).limit(1);
   if (tokenRows.length === 0) {
     res.status(400).json({ error: "Gmail not connected. Please authenticate first." });
@@ -216,7 +216,7 @@ router.post("/api/gmail/autorespond", async (req, res) => {
   });
 });
 
-router.post("/api/gmail/revoke", async (req, res) => {
+router.post("/gmail/revoke", async (req, res) => {
   await db.delete(gmailTokensTable);
   res.json({ success: true, message: "Gmail access revoked successfully." });
 });

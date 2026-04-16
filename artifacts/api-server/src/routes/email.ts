@@ -67,7 +67,7 @@ ${body}`;
   };
 }
 
-router.post("/api/email/process", async (req, res) => {
+router.post("/email/process", async (req, res) => {
   const parseResult = ProcessEmailBody.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -94,7 +94,7 @@ router.post("/api/email/process", async (req, res) => {
   res.json(inserted);
 });
 
-router.get("/api/email/history", async (req, res) => {
+router.get("/email/history", async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
   const offset = parseInt(req.query.offset as string) || 0;
 
@@ -112,7 +112,7 @@ router.get("/api/email/history", async (req, res) => {
   });
 });
 
-router.get("/api/email/stats", async (req, res) => {
+router.get("/email/stats", async (req, res) => {
   const [totalResult, allEmails] = await Promise.all([
     db.select({ count: count() }).from(emailAnalysisTable),
     db.select({

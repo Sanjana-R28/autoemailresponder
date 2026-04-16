@@ -26,3 +26,12 @@ externalPort = 8080
 [[ports]]
 localPort = 8081
 externalPort = 80
+
+[[ports]]
+localPort = 26093
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+GMAIL_REDIRECT_URI = "https://7079bf09-a4a4-45da-9b76-9961d4e7efbe-00-1g2blaio2nvk.kirk.replit.dev/api/gmail/callback"
