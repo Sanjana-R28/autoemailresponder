@@ -26,10 +26,13 @@ function getRequestOrigin(req: Request) {
 }
 
 function getRedirectUri(req?: Request) {
+  const configuredRedirectUri = getEnvValue("GMAIL_REDIRECT_URI", "GOOGLE_REDIRECT_URI");
+  if (configuredRedirectUri) return configuredRedirectUri;
+
   const origin = req ? getRequestOrigin(req) : null;
   if (origin) return `${origin}/api/gmail/callback`;
 
-  return getEnvValue("GMAIL_REDIRECT_URI", "GOOGLE_REDIRECT_URI");
+  return null;
 }
 
 function getOAuthConfig(req?: Request) {
