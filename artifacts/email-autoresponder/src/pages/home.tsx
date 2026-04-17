@@ -95,14 +95,18 @@ export default function Home() {
     },
   });
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    return error instanceof Error ? error.message : fallback;
+  };
+
   const onSubmit = (values: z.infer<typeof emailFormSchema>) => {
     processEmail.mutate({ data: values }, {
       onSuccess: (data) => {
         setResult(data);
         toast({ title: "Email processed successfully" });
       },
-      onError: () => {
-        toast({ title: "Failed to process email", variant: "destructive" });
+      onError: (error) => {
+        toast({ title: "Failed to process email", description: getErrorMessage(error, "Please try again."), variant: "destructive" });
       }
     });
   };
@@ -117,8 +121,8 @@ export default function Home() {
           toast({ title: "Notice", description: data.message });
         }
       },
-      onError: () => {
-        toast({ title: "Auto-respond failed", variant: "destructive" });
+      onError: (error) => {
+        toast({ title: "Auto-respond failed", description: getErrorMessage(error, "Please try again."), variant: "destructive" });
       }
     });
   };
@@ -258,7 +262,12 @@ export default function Home() {
                         <a href={authUrl.url} target="_blank" rel="noopener noreferrer">Connect Gmail</a>
                       </Button>
                     ) : (
-                      <Button disabled size="lg" className="mt-4">Loading URL...</Button>
+                      <div className="mt-4 space-y-2">
+                        <Button disabled size="lg">Gmail setup needed</Button>
+                        <p className="text-xs text-muted-foreground max-w-md">
+                          Add Gmail OAuth client credentials as secrets, then restart the API server.
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}

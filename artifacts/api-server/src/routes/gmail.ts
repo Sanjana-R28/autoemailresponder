@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { google } from "googleapis";
 import { db } from "@workspace/db";
 import { gmailTokensTable, emailAnalysisTable } from "@workspace/db";
@@ -7,34 +7,68 @@ import { desc } from "drizzle-orm";
 
 const router = Router();
 
-function getOAuth2Client() {
-  const clientId = process.env.GMAIL_CLIENT_ID;
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-  const redirectUri = process.env.GMAIL_REDIRECT_URI;
-
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error("Gmail OAuth credentials not configured");
+function getEnvValue(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
   }
 
+  return null;
+}
+
+function getRequestOrigin(req: Request) {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || req.protocol || "https";
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.get("host");
+
+  return host ? `${proto}://${host}` : null;
+}
+
+function getRedirectUri(req?: Request) {
+  const origin = req ? getRequestOrigin(req) : null;
+  if (origin) return `${origin}/api/gmail/callback`;
+
+  return getEnvValue("GMAIL_REDIRECT_URI", "GOOGLE_REDIRECT_URI");
+}
+
+function getOAuthConfig(req?: Request) {
+  const clientId = getEnvValue("GMAIL_CLIENT_ID", "GOOGLE_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID");
+  const clientSecret = getEnvValue("GMAIL_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET");
+  const redirectUri = getRedirectUri(req);
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    return null;
+  }
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+function getOAuth2Client(req?: Request) {
+  const config = getOAuthConfig(req);
+  if (!config) {
+    throw new Error("Gmail OAuth credentials are not configured. Add GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET as secrets.");
+  }
+
+  const { clientId, clientSecret, redirectUri } = config;
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
 router.get("/gmail/auth-url", async (req, res) => {
-  const clientId = process.env.GMAIL_CLIENT_ID;
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-  const redirectUri = process.env.GMAIL_REDIRECT_URI;
-
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!getOAuthConfig(req)) {
     res.json({
-      url: `/api/gmail/not-configured`,
+      url: "",
+      configured: false,
+      message: "Gmail is not configured. Add GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET as secrets, then restart the API server.",
     });
     return;
   }
 
-  const oauth2Client = getOAuth2Client();
+  const oauth2Client = getOAuth2Client(req);
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
+    include_granted_scopes: true,
     scope: [
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/gmail.send",
@@ -47,13 +81,20 @@ router.get("/gmail/auth-url", async (req, res) => {
 });
 
 router.get("/gmail/callback", async (req, res) => {
+  const oauthError = req.query.error as string | undefined;
+  if (oauthError) {
+    const description = (req.query.error_description as string | undefined) ?? "Google denied access to this Gmail account.";
+    res.status(400).send(`<html><body style="font-family: system-ui, sans-serif; line-height: 1.5; padding: 2rem;"><h1>Gmail connection was denied</h1><p>${description}</p><p>If this Google app is in testing mode, make sure this Gmail address is added as a test user in Google Cloud, then try connecting again.</p></body></html>`);
+    return;
+  }
+
   const code = req.query.code as string;
   if (!code) {
     res.status(400).send("No authorization code provided");
     return;
   }
 
-  const oauth2Client = getOAuth2Client();
+  const oauth2Client = getOAuth2Client(req);
   const { tokens } = await oauth2Client.getToken(code);
   oauth2Client.setCredentials(tokens);
 
@@ -69,9 +110,9 @@ router.get("/gmail/callback", async (req, res) => {
     name: userInfo.data.name ?? null,
   });
 
-  const domains = process.env.REPLIT_DOMAINS?.split(",")[0];
-  if (domains) {
-    res.redirect(`https://${domains}/?gmail=connected`);
+  const origin = getRequestOrigin(req);
+  if (origin) {
+    res.redirect(`${origin}/?gmail=connected`);
   } else {
     res.send(`<html><body><p>Gmail connected successfully! You can close this tab and return to the app.</p></body></html>`);
   }

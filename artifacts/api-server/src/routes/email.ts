@@ -2,7 +2,6 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { emailAnalysisTable } from "@workspace/db";
 import { ProcessEmailBody } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { desc, count, sql } from "drizzle-orm";
 
 const router = Router();
@@ -13,6 +12,8 @@ async function analyzeEmail(subject: string, body: string): Promise<{
   area: string;
   generatedReply: string;
 }> {
+  const { openai } = await import("@workspace/integrations-openai-ai-server");
+
   const systemPrompt = `You are a multi-agent email analysis system with three specialized agents:
 
 1. ANALYST AGENT: Classify the email by:

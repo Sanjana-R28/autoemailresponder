@@ -47,7 +47,7 @@ An intelligent email autoresponder web application that uses AI to analyze incom
 
 - `GMAIL_CLIENT_ID` — Google OAuth Client ID (secret)
 - `GMAIL_CLIENT_SECRET` — Google OAuth Client Secret (secret)
-- `GMAIL_REDIRECT_URI` — OAuth callback URL (shared env var)
+- `GMAIL_REDIRECT_URI` — optional OAuth callback URL override; the API normally derives the current callback URL from the request host
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` — Replit AI Integrations proxy URL
 - `AI_INTEGRATIONS_OPENAI_API_KEY` — Replit AI Integrations key
 - `DATABASE_URL` — PostgreSQL connection string
@@ -74,5 +74,6 @@ To enable Gmail OAuth:
 1. Go to https://console.cloud.google.com/
 2. Create a project and enable Gmail API
 3. Create OAuth 2.0 credentials (Web application)
-4. Add authorized redirect URI: `https://<your-domain>/api/gmail/callback`
+4. Add authorized redirect URI shown by the app host: `https://<your-domain>/api/gmail/callback`
 5. Set `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET` as secrets
+6. If the Google OAuth consent screen is in testing mode, add the Gmail account being connected as a test user
