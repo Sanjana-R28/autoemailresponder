@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, History, BarChart3, Inbox } from "lucide-react";
+import { LayoutDashboard, History, BarChart3, Inbox, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -9,6 +9,7 @@ export function Sidebar() {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/history", label: "History", icon: History },
     { href: "/stats", label: "Analytics", icon: BarChart3 },
+    { href: "/diagnostics", label: "Diagnostics", icon: Wrench },
   ];
 
   return (

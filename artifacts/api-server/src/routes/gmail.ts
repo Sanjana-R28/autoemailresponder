@@ -3,7 +3,7 @@ import { google } from "googleapis";
 import { db } from "@workspace/db";
 import { gmailTokensTable, emailAnalysisTable } from "@workspace/db";
 import { analyzeEmail } from "./email.js";
-import { desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -132,6 +132,119 @@ router.get("/gmail/status", async (req, res) => {
     connected: true,
     email: tokens[0].email,
     name: tokens[0].name,
+  });
+});
+
+router.get("/gmail/diagnostics", async (req, res) => {
+  const config = getOAuthConfig(req);
+  const redirectUri = getRedirectUri(req);
+  let databaseReady = false;
+  let gmailConnected = false;
+  let connectedEmail: string | null = null;
+  let connectedName: string | null = null;
+  let databaseError: string | null = null;
+
+  try {
+    await db.execute(sql`select to_regclass('public.gmail_tokens')`);
+    const tokens = await db.select().from(gmailTokensTable).limit(1);
+    databaseReady = true;
+    gmailConnected = tokens.length > 0;
+    connectedEmail = tokens[0]?.email ?? null;
+    connectedName = tokens[0]?.name ?? null;
+  } catch (error) {
+    databaseError = error instanceof Error ? error.message : "Database check failed";
+  }
+
+  const parsedRedirectUri = redirectUri ? new URL(redirectUri) : null;
+  const redirectUriLooksPublic =
+    Boolean(parsedRedirectUri) &&
+    parsedRedirectUri!.protocol === "https:" &&
+    !["localhost", "127.0.0.1", "0.0.0.0"].includes(parsedRedirectUri!.hostname);
+  const redirectPathCorrect = parsedRedirectUri?.pathname === "/api/gmail/callback";
+  const aiConfigured = Boolean(
+    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  );
+
+  const checks = [
+    {
+      id: "gmail-client-id",
+      label: "Gmail Client ID",
+      status: getEnvValue("GMAIL_CLIENT_ID", "GOOGLE_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID") ? "pass" : "fail",
+      detail: getEnvValue("GMAIL_CLIENT_ID", "GOOGLE_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_ID")
+        ? "Configured"
+        : "Missing secret",
+      action: "Add GMAIL_CLIENT_ID as a secret.",
+    },
+    {
+      id: "gmail-client-secret",
+      label: "Gmail Client Secret",
+      status: getEnvValue("GMAIL_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET")
+        ? "pass"
+        : "fail",
+      detail: getEnvValue("GMAIL_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "GOOGLE_OAUTH_CLIENT_SECRET")
+        ? "Configured"
+        : "Missing secret",
+      action: "Add GMAIL_CLIENT_SECRET as a secret.",
+    },
+    {
+      id: "redirect-uri",
+      label: "OAuth Redirect URL",
+      status: redirectUriLooksPublic && redirectPathCorrect ? "pass" : "fail",
+      detail: redirectUri ?? "No redirect URL available",
+      action: "Add this exact redirect URL to Google Cloud OAuth credentials.",
+    },
+    {
+      id: "database",
+      label: "Database Tables",
+      status: databaseReady ? "pass" : "fail",
+      detail: databaseReady ? "Gmail token table is ready" : databaseError ?? "Database is not ready",
+      action: "Run the database schema push before connecting Gmail.",
+    },
+    {
+      id: "ai",
+      label: "AI Reply Generator",
+      status: aiConfigured ? "pass" : "fail",
+      detail: aiConfigured ? "AI service is configured" : "AI service settings are missing",
+      action: "Provision the AI service before auto-responding.",
+    },
+    {
+      id: "gmail-connection",
+      label: "Saved Gmail Connection",
+      status: gmailConnected ? "pass" : "warn",
+      detail: gmailConnected
+        ? `Connected as ${connectedEmail ?? connectedName ?? "Gmail account"}`
+        : "No Gmail account connected yet",
+      action: "Use the Connect Gmail button to complete Google authorization.",
+    },
+  ];
+
+  const readyToConnect = Boolean(config) && redirectUriLooksPublic && redirectPathCorrect && databaseReady;
+  const readyToAutoRespond = readyToConnect && gmailConnected && aiConfigured;
+
+  res.json({
+    readyToConnect,
+    readyToAutoRespond,
+    redirectUri,
+    googleCloudRequiredRedirectUri: redirectUri,
+    requiredScopes: [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+    ],
+    connectedAccount: gmailConnected
+      ? {
+          email: connectedEmail,
+          name: connectedName,
+        }
+      : null,
+    commonAccessDeniedFixes: [
+      "Make sure this exact redirect URL is listed in Google Cloud OAuth Authorized redirect URIs.",
+      "If the OAuth consent screen is in testing mode, add the Gmail address as a test user.",
+      "Enable the Gmail API in the same Google Cloud project as the OAuth client.",
+      "Use OAuth client type Web application, not Desktop or Android.",
+    ],
+    checks,
   });
 });
 

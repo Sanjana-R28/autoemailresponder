@@ -67,6 +67,7 @@ An intelligent email autoresponder web application that uses AI to analyze incom
 - `GET /api/gmail/callback` — OAuth callback handler
 - `POST /api/gmail/autorespond` — auto-reply to latest unread Gmail
 - `POST /api/gmail/revoke` — disconnect Gmail
+- `GET /api/gmail/diagnostics` — check Gmail setup, redirect URL, database readiness, saved connection, and AI readiness
 
 ## Gmail Setup
 
