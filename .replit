@@ -43,4 +43,4 @@ externalPort = 3001
 [userenv]
 
 [userenv.shared]
-GMAIL_REDIRECT_URI = "https://7079bf09-a4a4-45da-9b76-9961d4e7efbe-00-1g2blaio2nvk.kirk.replit.dev/api/gmail/callback"
+GMAIL_REDIRECT_URI = "https://1a312aa7-15e8-458f-8548-8f631c73795b-00-1ii69briwg4ef.sisko.replit.dev/api/gmail/callback"

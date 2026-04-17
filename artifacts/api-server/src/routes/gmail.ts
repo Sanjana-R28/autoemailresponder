@@ -26,6 +26,9 @@ function getRequestOrigin(req: Request) {
 }
 
 function getRedirectUri(req?: Request) {
+  const replitDomain = getEnvValue("REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN")?.split(",")[0]?.trim();
+  if (replitDomain) return `https://${replitDomain}/api/gmail/callback`;
+
   const configuredRedirectUri = getEnvValue("GMAIL_REDIRECT_URI", "GOOGLE_REDIRECT_URI");
   if (configuredRedirectUri) return configuredRedirectUri;
 
