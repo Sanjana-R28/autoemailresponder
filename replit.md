@@ -26,6 +26,10 @@ An intelligent email autoresponder web application that uses AI to analyze incom
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
+## Dependency Maintenance
+
+- Security-patched workspace dependency versions are pinned through `pnpm-workspace.yaml` catalogs/overrides for `drizzle-orm`, `vite`, `lodash`, `path-to-regexp`, and both `picomatch` major lines.
+
 ## Core Features
 
 ### Email Analysis (Multi-Agent AI)
