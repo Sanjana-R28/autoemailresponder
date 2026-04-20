@@ -60,6 +60,62 @@ function getOAuth2Client(req?: Request) {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+function getGoogleErrorStatus(error: unknown) {
+  if (typeof error === "object" && error !== null && "status" in error) {
+    return Number((error as { status?: unknown }).status);
+  }
+
+  return null;
+}
+
+function isGoogleAuthError(error: unknown) {
+  const status = getGoogleErrorStatus(error);
+  if (status === 401 || status === 403) return true;
+
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return code === 401 || code === 403 || code === "401" || code === "403";
+  }
+
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const data = (error as { response?: { data?: unknown } }).response?.data;
+    if (typeof data === "object" && data !== null && "error" in data) {
+      const googleError = (data as { error?: unknown }).error;
+      return googleError === "invalid_grant" || googleError === "invalid_token";
+    }
+  }
+
+  return false;
+}
+
+async function refreshStoredGmailCredentials(oauth2Client: ReturnType<typeof getOAuth2Client>, refreshToken: string | null) {
+  if (!refreshToken) {
+    return false;
+  }
+
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  const { credentials } = await oauth2Client.refreshAccessToken();
+  const accessToken = credentials.access_token;
+
+  if (!accessToken) {
+    return false;
+  }
+
+  oauth2Client.setCredentials({
+    ...credentials,
+    refresh_token: credentials.refresh_token ?? refreshToken,
+  });
+
+  await db.update(gmailTokensTable).set({
+    accessToken,
+    refreshToken: credentials.refresh_token ?? refreshToken,
+    expiryDate: credentials.expiry_date?.toString() ?? null,
+    updatedAt: new Date(),
+  });
+
+  return true;
+}
+
 router.get("/gmail/auth-url", async (req, res) => {
   if (!getOAuthConfig(req)) {
     res.json({
@@ -270,19 +326,43 @@ router.post("/gmail/autorespond", async (req, res) => {
     if (newTokens.access_token) {
       await db.update(gmailTokensTable).set({
         accessToken: newTokens.access_token,
+        refreshToken: newTokens.refresh_token ?? tokenRow.refreshToken,
         expiryDate: newTokens.expiry_date?.toString() ?? null,
         updatedAt: new Date(),
       });
     }
   });
 
+  try {
+    await refreshStoredGmailCredentials(oauth2Client, tokenRow.refreshToken);
+  } catch (error) {
+    if (isGoogleAuthError(error)) {
+      await db.delete(gmailTokensTable);
+      res.status(401).json({ error: "Gmail authorization expired. Please reconnect Gmail and try Auto-Pilot again." });
+      return;
+    }
+
+    throw error;
+  }
+
   const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-  const listResponse = await gmail.users.messages.list({
-    userId: "me",
-    q: "is:unread",
-    maxResults: 1,
-  });
+  let listResponse;
+  try {
+    listResponse = await gmail.users.messages.list({
+      userId: "me",
+      q: "is:unread",
+      maxResults: 1,
+    });
+  } catch (error) {
+    if (isGoogleAuthError(error)) {
+      await db.delete(gmailTokensTable);
+      res.status(401).json({ error: "Gmail authorization expired. Please reconnect Gmail and try Auto-Pilot again." });
+      return;
+    }
+
+    throw error;
+  }
 
   const messages = listResponse.data.messages;
   if (!messages || messages.length === 0) {
